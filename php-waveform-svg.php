@@ -141,14 +141,17 @@
               break;
           }
           
+          // Squash data between 0 and 100
+          $data = number_format($data / 255 * 100, 2);
+
           // skip bytes for memory optimization
           fseek($handle, $ratio, SEEK_CUR);
           
           // draw this data point
           // data values can range between 0 and 255        
           $x1 = $x2 = number_format($data_point / $data_size * 100, 2);
-          $y1 = number_format($data / 255 * 100, 2);
-          $y2 = 100 - $y1;
+          $y1 = ($data < 50 ? $data : 100 - $data) * 2; // Make sure y1 is lower number
+          $y2 = 100;
           // don't bother plotting if it is a zero point
           if ($y1 != $y2)
             $svg .= "<line x1=\"{$x1}%\" y1=\"{$y1}%\" x2=\"{$x2}%\" y2=\"{$y2}%\" />";   
