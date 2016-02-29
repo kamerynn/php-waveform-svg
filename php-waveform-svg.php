@@ -1,7 +1,7 @@
 <?php
-  
+
   ini_set("max_execution_time", "30000");
-  
+
   // how much detail we want. Larger number means less detail
   // (basically, how many bytes/frames to skip processing)
   // the lower the number means longer processing time
@@ -11,34 +11,33 @@
   define("DEFAULT_HEIGHT", 100);
   define("DEFAULT_FOREGROUND", "#FF0000");
   define("DEFAULT_BACKGROUND", "#FFFFFF");
-  
+
   /**
    * GENERAL FUNCTIONS
    */
   function findValues($byte1, $byte2){
-    $byte1 = hexdec(bin2hex($byte1));                        
-    $byte2 = hexdec(bin2hex($byte2));                        
+    $byte1 = hexdec(bin2hex($byte1));
+    $byte2 = hexdec(bin2hex($byte2));
     return ($byte1 + ($byte2*256));
   }
-  
   if (isset($_FILES["mp3"])) {
-  
+
     /**
      * PROCESS THE FILE
      */
-  
+
     // temporary file name
     $tmpname = substr(md5(time()), 0, 10);
-    
+
     // copy from temp upload directory to current
     copy($_FILES["mp3"]["tmp_name"], "{$tmpname}_o.mp3");
-    
+
 		// support for stereo waveform?
     $stereo = isset($_POST["stereo"]) && $_POST["stereo"] == "on" ? true : false;
-   
+
 		// array of wavs that need to be processed
     $wavs_to_process = array();
-    
+
     /**
      * convert mp3 to wav using lame decoder
      * First, resample the original mp3 using as mono (-m m), 16 bit (-b 16), and 8 KHz (--resample 8)
@@ -57,11 +56,11 @@
       exec("lame {$tmpname}_o.mp3 -m m -S -f -b 16 --resample 8 {$tmpname}.mp3 && lame -S --decode {$tmpname}.mp3 {$tmpname}.wav");
       $wavs_to_process[] = "{$tmpname}.wav";
     }
-    
+
     // delete temporary files
     unlink("{$tmpname}_o.mp3");
     unlink("{$tmpname}.mp3");
-    
+
     // Could just print to the output buffer, but saving to a variable
     // makes it easier to display the SVG and dump it to a file without
     // any messy ob_*() hassle
@@ -71,16 +70,16 @@
     $svg .= "<svg width=\"100%\" height=\"100%\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">\n";
 		// rect for background color
     $svg .= "<rect width=\"100%\" height=\"100%\" />\n";
-    
+
     $y_offset = floor(1 / sizeof($wavs_to_process) * 100);
-    
+
     // process each wav individually
     for($wav = 1; $wav <= sizeof($wavs_to_process); $wav++) {
     
       $svg .= "<svg y=\"" . ($y_offset * ($wav - 1)) . "%\" width=\"100%\" height=\"{$y_offset}%\">";
  
       $filename = $wavs_to_process[$wav - 1];
-    
+
       /**
        * Below as posted by "zvoneM" on
        * http://forums.devshed.com/php-development-5/reading-16-bit-wav-file-318740.html
@@ -102,16 +101,16 @@
       $heading[] = bin2hex(fread($handle, 2));
       $heading[] = fread($handle, 4);
       $heading[] = bin2hex(fread($handle, 4));
-      
-      // wav bitrate 
+
+      // wav bitrate
       $peek = hexdec(substr($heading[10], 0, 2));
       $byte = $peek / 8;
-      
+
       // checking whether a mono or stereo wav
       $channel = hexdec(substr($heading[6], 0, 2));
-      
+
       $ratio = ($channel == 2 ? 40 : 80);
-      
+
       // start putting together the initial canvas
       // $data_size = (size_of_file - header_bytes_read) / skipped_bytes + 1
       $data_size = floor((filesize($filename) - 44) / ($ratio + $byte) + 1);
@@ -120,11 +119,11 @@
       while(!feof($handle) && $data_point < $data_size){
         if ($data_point++ % DETAIL == 0) {
           $bytes = array();
-          
+
           // get number of bytes depending on bitrate
           for ($i = 0; $i < $byte; $i++)
             $bytes[$i] = fgetc($handle);
-          
+
           switch($byte){
             // get value for 8-bit wav
             case 1:
@@ -140,13 +139,13 @@
               $data = floor(findValues($bytes[0], $temp) / 256);
               break;
           }
-          
+
           // Squash data between 0 and 100
           $data = number_format($data / 255 * 100, 2);
 
           // skip bytes for memory optimization
           fseek($handle, $ratio, SEEK_CUR);
-          
+
           // draw this data point
           // data values can range between 0 and 255        
           $x1 = $x2 = number_format($data_point / $data_size * 100, 2);
@@ -169,30 +168,30 @@
 
       // delete the processed wav file
       unlink($filename);
-      
+
     }
-    
+
     $svg .= "\n</svg>";
-    
+
     header("Content-Type: image/svg+xml");
-    
+
     print $svg;
-    
+
   } else {
-    
+
 ?>
 
   <form method="post" action="<?php print $_SERVER["REQUEST_URI"]; ?>" enctype="multipart/form-data">
-  
+
   <p>MP3 File:<br />
     <input type="file" name="mp3" /></p>
-  
+
   <p>Stereo waveform? <input type="checkbox" name="stereo" /></p>
-    
+
   <p><input type="submit" value="Generate Waveform" /></p>
-  
+
   </form>
 
 <?php
-  
-  }    
+
+  }
