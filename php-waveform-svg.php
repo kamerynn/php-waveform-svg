@@ -20,6 +20,11 @@
     $byte2 = hexdec(bin2hex($byte2));
     return ($byte1 + ($byte2*256));
   }
+
+  function flipYValue($data) {
+    return 100 - $data;
+  }
+
   if (isset($_FILES["mp3"])) {
 
     /**
@@ -75,9 +80,10 @@
 
     // process each wav individually
     for($wav = 1; $wav <= sizeof($wavs_to_process); $wav++) {
-    
-      $svg .= "<svg y=\"" . ($y_offset * ($wav - 1)) . "%\" width=\"100%\" height=\"{$y_offset}%\">";
- 
+
+      $svg .= "<svg y=\"" . ($y_offset * ($wav - 1)) . "%\" width=\"100%\" height=\"{$y_offset}%\" viewBox=\"0 50 100 100\" preserveAspectRatio=\"none\"> ";
+      $svg .= "<polyline points=\"";
+
       $filename = $wavs_to_process[$wav - 1];
 
       /**
@@ -147,22 +153,28 @@
           fseek($handle, $ratio, SEEK_CUR);
 
           // draw this data point
-          // data values can range between 0 and 255        
-          $x1 = $x2 = number_format($data_point / $data_size * 100, 2);
-          $y1 = ($data < 50 ? $data : 100 - $data) * 2; // Make sure y1 is lower number
-          $y2 = 100;
+          // data values can range between 0 and 255
+          // $x1 = $x2 = number_format($data_point / $data_size * 100, 2);
+          // $y1 = ($data < 50 ? $data : flipYValue($data)) * 2; // Make sure y1 is lower number
+          // $y2 = 100;
           // don't bother plotting if it is a zero point
-          if ($y1 != $y2)
-            $svg .= "<line x1=\"{$x1}%\" y1=\"{$y1}%\" x2=\"{$x2}%\" y2=\"{$y2}%\" />";   
-          
+          // if ($y1 != $y2)
+          //   $svg .= "<line x1=\"{$x1}%\" y1=\"{$y1}%\" x2=\"{$x2}%\" y2=\"{$y2}%\" />";
+
+          $x = number_format($data_point / $data_size * 100, 2);
+
+          $y = ($data < 50 ? $data : flipYValue($data)) * 2; // Make sure y1 is lower number
+
+          $svg .= "$x,$y ";
+
         } else {
           // skip this one due to lack of detail
           fseek($handle, $ratio + $byte, SEEK_CUR);
         }
       }
-      
-      $svg .= "</svg>\n";
-      
+
+      $svg = rtrim($svg, ' ') . "\" /></svg>\n";
+
       // close and cleanup
       fclose($handle);
 

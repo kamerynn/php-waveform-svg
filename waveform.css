@@ -10,7 +10,7 @@ rect {
  * WAVEFORM LINE COLOUR
  */
 
-line {
+line, polyline {
   stroke: rgb(0,0,0);
   stroke-width: 1px;
 }
