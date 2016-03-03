@@ -3,7 +3,7 @@
  */
 
 rect {
-  fill: rgb(255,0,0);
+  fill: rgb(255,255,255);
 }
 
 /**
@@ -12,5 +12,13 @@ rect {
 
 line, polyline {
   stroke: rgb(0,0,0);
-  stroke-width: 1px;
+  stroke-width: 0.3px;
+}
+
+.polyline-1 {
+  fill: rgb(255, 0, 0);
+}
+
+.polyline-2 {
+  fill: rgb(0, 0, 255);
 }

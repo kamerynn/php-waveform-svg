@@ -5,10 +5,13 @@
   // how much detail we want. Larger number means less detail
   // (basically, how many bytes/frames to skip processing)
   // the lower the number means longer processing time
-  define("DETAIL", 5);
-  
-  define("DEFAULT_WIDTH", 500);
-  define("DEFAULT_HEIGHT", 100);
+  define("DETAIL", 50);
+
+  define("VIEWPORT_WIDTH", 700);
+  define("VIEWPORT_HEIGHT", 100);
+  define("VIEWBOX_WIDTH", 100);
+  define("VIEWBOX_HEIGHT", 100);
+
   define("DEFAULT_FOREGROUND", "#FF0000");
   define("DEFAULT_BACKGROUND", "#FFFFFF");
 
@@ -22,49 +25,20 @@
   }
 
   function flipYValue($data) {
-    return 100 - $data;
+    return VIEWBOX_HEIGHT - $data;
   }
 
-  if (isset($_FILES["mp3"])) {
+  if (isset($_FILES["wav-left"]) && isset($_FILES["wav-right"])) {
 
     /**
      * PROCESS THE FILE
      */
 
-    // temporary file name
-    $tmpname = substr(md5(time()), 0, 10);
-
-    // copy from temp upload directory to current
-    copy($_FILES["mp3"]["tmp_name"], "{$tmpname}_o.mp3");
-
-		// support for stereo waveform?
-    $stereo = isset($_POST["stereo"]) && $_POST["stereo"] == "on" ? true : false;
-
 		// array of wavs that need to be processed
-    $wavs_to_process = array();
-
-    /**
-     * convert mp3 to wav using lame decoder
-     * First, resample the original mp3 using as mono (-m m), 16 bit (-b 16), and 8 KHz (--resample 8)
-     * Secondly, convert that resampled mp3 into a wav
-     * We don't necessarily need high quality audio to produce a waveform, doing this process reduces the WAV
-     * to it's simplest form and makes processing significantly faster
-     */
-    if ($stereo) {
-			// scale right channel down (a scale of 0 does not work)
-      exec("lame {$tmpname}_o.mp3 --scale-r 0.1 -m m -S -f -b 16 --resample 8 {$tmpname}.mp3 && lame -S --decode {$tmpname}.mp3 {$tmpname}_l.wav");
-			// same as above, left channel
-      exec("lame {$tmpname}_o.mp3 --scale-l 0.1 -m m -S -f -b 16 --resample 8 {$tmpname}.mp3 && lame -S --decode {$tmpname}.mp3 {$tmpname}_r.wav");
-      $wavs_to_process[] = "{$tmpname}_l.wav";
-      $wavs_to_process[] = "{$tmpname}_r.wav";
-    } else {
-      exec("lame {$tmpname}_o.mp3 -m m -S -f -b 16 --resample 8 {$tmpname}.mp3 && lame -S --decode {$tmpname}.mp3 {$tmpname}.wav");
-      $wavs_to_process[] = "{$tmpname}.wav";
-    }
-
-    // delete temporary files
-    unlink("{$tmpname}_o.mp3");
-    unlink("{$tmpname}.mp3");
+    $wavs_to_process = array(
+      $_FILES["wav-left"]["tmp_name"],
+      $_FILES["wav-right"]["tmp_name"]
+    );
 
     // Could just print to the output buffer, but saving to a variable
     // makes it easier to display the SVG and dump it to a file without
@@ -72,17 +46,16 @@
     $svg  = "<?xml version=\"1.0\"?>\n";
     $svg .= "<?xml-stylesheet href=\"waveform.css\" type=\"text/css\"?>\n";
     $svg .= "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" \"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">\n";
-    $svg .= "<svg width=\"100%\" height=\"100%\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">\n";
-		// rect for background color
-    $svg .= "<rect width=\"100%\" height=\"100%\" />\n";
+    $svg .= "<svg width=\"". VIEWPORT_WIDTH . "\" height=\"". VIEWPORT_HEIGHT . "\" viewBox=\"0,0,100,100\" preserveAspectRatio=\"none\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">\n";
 
-    $y_offset = floor(1 / sizeof($wavs_to_process) * 100);
+    $y_offset = floor(1 / sizeof($wavs_to_process) * VIEWBOX_HEIGHT);
+
+    $baseline = VIEWBOX_HEIGHT / 2;
 
     // process each wav individually
     for($wav = 1; $wav <= sizeof($wavs_to_process); $wav++) {
 
-      $svg .= "<svg y=\"" . ($y_offset * ($wav - 1)) . "%\" width=\"100%\" height=\"{$y_offset}%\" viewBox=\"0 50 100 100\" preserveAspectRatio=\"none\"> ";
-      $svg .= "<polyline points=\"";
+      $svg .= "<polyline class=\"polyline-{$wav}\" points=\"";
 
       $filename = $wavs_to_process[$wav - 1];
 
@@ -152,18 +125,14 @@
           // skip bytes for memory optimization
           fseek($handle, $ratio, SEEK_CUR);
 
-          // draw this data point
-          // data values can range between 0 and 255
-          // $x1 = $x2 = number_format($data_point / $data_size * 100, 2);
-          // $y1 = ($data < 50 ? $data : flipYValue($data)) * 2; // Make sure y1 is lower number
-          // $y2 = 100;
-          // don't bother plotting if it is a zero point
-          // if ($y1 != $y2)
-          //   $svg .= "<line x1=\"{$x1}%\" y1=\"{$y1}%\" x2=\"{$x2}%\" y2=\"{$y2}%\" />";
-
           $x = number_format($data_point / $data_size * 100, 2);
 
-          $y = ($data < 50 ? $data : flipYValue($data)) * 2; // Make sure y1 is lower number
+          $amplitude = abs($data - $baseline);
+
+          // TODO: figure out a better way to scale
+          $amplitude *= 4;
+
+          $y = $wav === 1 ? $baseline - $amplitude : $baseline + $amplitude;
 
           $svg .= "$x,$y ";
 
@@ -173,7 +142,7 @@
         }
       }
 
-      $svg = rtrim($svg, ' ') . "\" /></svg>\n";
+      $svg = rtrim($svg, ' ') . "\" />";
 
       // close and cleanup
       fclose($handle);
@@ -195,11 +164,11 @@
 
   <form method="post" action="<?php print $_SERVER["REQUEST_URI"]; ?>" enctype="multipart/form-data">
 
-  <p>MP3 File:<br />
-    <input type="file" name="mp3" /></p>
+  <p>WAV File (left):<br />
+    <input type="file" name="wav-left" /></p>
 
-  <p>Stereo waveform? <input type="checkbox" name="stereo" /></p>
-
+  <p>WAV File (right):<br />
+    <input type="file" name="wav-right" /></p>
   <p><input type="submit" value="Generate Waveform" /></p>
 
   </form>
